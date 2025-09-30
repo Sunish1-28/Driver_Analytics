@@ -1,0 +1,22 @@
+{
+  "name": "driver-analytics",
+  "version": "1.0.0",
+  "description": "Firebase function using Gemini API to analyze driver data",
+  "main": "index.js",
+  "scripts": {
+    "start": "firebase emulators:start",
+    "deploy": "firebase deploy"
+  },
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+  "firebase-admin": "^11.10.1",
+  "firebase-functions": "^4.5.0",
+  "@google-cloud/aiplatform": "^1.10.0",
+  "@google/generative-ai": "^0.4.0",
+  "cors": "^2.8.5",
+  "dotenv": "^16.4.5"
+}
+
+}

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uber Fleet - Real-Time Analytics with AI Insights</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles to complement Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        /* Custom scrollbar for a more modern look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .kpi-card, .ai-card, .chart-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .kpi-card:hover, .ai-card:hover, .chart-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Global Loading Overlay */
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(17, 24, 39, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 1rem;
+            transition: opacity 0.3s ease;
+        }
+        #loadingOverlay .spinner { width: 40px; height: 40px; border-width: 4px; }
+
+        /* Error Toast Notification */
+        #errorToast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            transform: translateX(120%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #errorToast.show {
+            transform: translateX(0);
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p class="text-lg text-gray-300">Initializing Dashboard...</p>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="errorToast">
+        <p id="errorMessage"></p>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-6 lg:p-8">
+        
+        <header class="mb-6 flex flex-col md:flex-row justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-white">Real-Time Fleet Dashboard</h1>
+                <p class="text-gray-400">Live monitoring with AI-powered business insights for your Indian fleet.</p>
+            </div>
+            <div class="text-sm text-gray-500 mt-4 md:mt-0">
+                User ID: <span id="userId" class="font-mono bg-gray-800 px-2 py-1 rounded">loading...</span>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div class="lg:col-span-1 flex flex-col gap-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="kpi-card bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <h3 class="text-sm font-medium text-gray-400">Total Income (Today)</h3>
+                        <p id="totalIncome" class="text-2xl font-bold text-green-400 mt-1">₹0.00</p>
+                    </div>
+                    <div class="kpi-card bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <h3 class="text-sm font-medium text-gray-400">Total Rides (Today)</h3>
+                        <p id="totalRides" class="text-2xl font-bold text-blue-400 mt-1">0</p>
+                    </div>
+                    <div class="kpi-card bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <h3 class="text-sm font-medium text-gray-400">Avg. Ride Fare</h3>
+                        <p id="avgFare" class="text-2xl font-bold text-yellow-400 mt-1">₹0.00</p>
+                    </div>
+                     <div class="kpi-card bg-gray-800 p-4 rounded-lg shadow-lg text-center">
+                        <h3 class="text-sm font-medium text-gray-400">Rides in Progress</h3>
+                        <p id="ridesInProgress" class="text-2xl font-bold text-purple-400 mt-1">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                    <h3 class="font-semibold text-white mb-3">Fleet Simulation</h3>
+                    <p class="text-sm text-gray-400 mb-4">Simulate a new ride being completed by a driver in your fleet.</p>
+                    <button id="simulateRideBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out">
+                        Simulate New Ride
+                    </button>
+                </div>
+
+                <div class="ai-card bg-gray-800 p-4 rounded-lg shadow-lg">
+                    <h3 class="font-semibold text-white mb-3">✨ AI-Powered Insights</h3>
+                    <div class="flex flex-col gap-4">
+                        <select id="promptType" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option value="summary" selected>Generate Daily Summary</option>
+                            <option value="trends">Identify Key Trends</option>
+                            <option value="advice">Get Optimization Advice</option>
+                        </select>
+                        <button id="generateSummaryBtn" class="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out flex items-center justify-center disabled:opacity-50" disabled>
+                            <span id="summaryBtnText">Generate Insights</span>
+                            <div id="summaryLoader" class="spinner hidden"></div>
+                        </button>
+                    </div>
+                    <div id="aiSummary" class="mt-4 text-sm text-gray-300 bg-gray-900/50 p-3 rounded-md min-h-[100px] whitespace-pre-wrap">Select an insight type and click generate...</div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                <!-- Visualizations Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="chart-card bg-gray-800 p-4 rounded-lg shadow-lg h-64">
+                        <h3 class="font-semibold text-white mb-3">Income Over Time</h3>
+                        <canvas id="incomeChart"></canvas>
+                    </div>
+                    <div class="chart-card bg-gray-800 p-4 rounded-lg shadow-lg h-64">
+                        <h3 class="font-semibold text-white mb-3">Ride Status Breakdown</h3>
+                        <canvas id="rideStatusChart"></canvas>
+                    </div>
+                </div>
+                 <!-- Peak Hours Chart -->
+                <div class="chart-card bg-gray-800 p-4 rounded-lg shadow-lg h-64">
+                    <h3 class="font-semibold text-white mb-3">Peak Hours</h3>
+                    <canvas id="peakHoursChart"></canvas>
+                </div>
+                <!-- Driver Earnings Chart -->
+                <div class="chart-card bg-gray-800 p-4 rounded-lg shadow-lg h-64">
+                    <h3 class="font-semibold text-white mb-3">Earnings by Driver</h3>
+                    <canvas id="driverChart"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow">
+                    <h3 class="font-semibold text-white mb-3">Recent Rides Log (Last 50)</h3>
+                    <div class="overflow-auto h-96">
+                        <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs text-gray-300 uppercase bg-gray-700 sticky top-0">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">Ride ID</th>
+                                    <th scope="col" class="px-4 py-3">Driver</th>
+                                    <th scope="col" class="px-4 py-3">Status</th>
+                                    <th scope="col" class="px-4 py-3">Fare (₹)</th>
+                                    <th scope="col" class="px-4 py-3">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rideLog">
+                                <!-- Ride data will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script type="module">
+        // This application is structured into logical "services" or "modules"
+        // (UI, Charts, FirebaseService, AIService) to keep the code organized and maintainable,
+        // even within a single file.
+        
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- App State ---
+        let db, auth, userId;
+        let rideData = [];
+        let incomeChart, rideStatusChart, peakHoursChart, driverChart;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'uber-fleet-demo';
+
+        // --- DOM Element References ---
+        const DOMElements = {
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            errorToast: document.getElementById('errorToast'),
+            errorMessage: document.getElementById('errorMessage'),
+            userId: document.getElementById('userId'),
+            totalIncome: document.getElementById('totalIncome'),
+            totalRides: document.getElementById('totalRides'),
+            avgFare: document.getElementById('avgFare'),
+            ridesInProgress: document.getElementById('ridesInProgress'),
+            rideLog: document.getElementById('rideLog'),
+            simulateRideBtn: document.getElementById('simulateRideBtn'),
+            generateSummaryBtn: document.getElementById('generateSummaryBtn'),
+            summaryBtnText: document.getElementById('summaryBtnText'),
+            summaryLoader: document.getElementById('summaryLoader'),
+            aiSummary: document.getElementById('aiSummary'),
+            promptType: document.getElementById('promptType'),
+            incomeChartCanvas: document.getElementById('incomeChart').getContext('2d'),
+            rideStatusChartCanvas: document.getElementById('rideStatusChart').getContext('2d'),
+            peakHoursChartCanvas: document.getElementById('peakHoursChart').getContext('2d'),
+            driverChartCanvas: document.getElementById('driverChart').getContext('2d'),
+        };
+
+        // --- UI Service: Manages all DOM manipulations ---
+        const UI = {
+            showLoading: () => DOMElements.loadingOverlay.style.display = 'flex',
+            hideLoading: () => DOMElements.loadingOverlay.style.opacity = '0',
+            showError: (message) => {
+                DOMElements.errorMessage.textContent = message;
+                DOMElements.errorToast.classList.add('show');
+                setTimeout(() => DOMElements.errorToast.classList.remove('show'), 5000);
+            },
+            setSummaryLoading: (isLoading) => {
+                DOMElements.generateSummaryBtn.disabled = isLoading;
+                DOMElements.summaryBtnText.classList.toggle('hidden', isLoading);
+                DOMElements.summaryLoader.classList.toggle('hidden', !isLoading);
+            },
+            updateDashboard: (data) => {
+                DOMElements.generateSummaryBtn.disabled = data.length === 0;
+                if (data.length === 0) {
+                    DOMElements.rideLog.innerHTML = '<tr><td colspan="5" class="text-center p-8">Awaiting first ride simulation...</td></tr>';
+                    return;
+                }
+
+                let totalIncome = 0, ridesInProgress = 0;
+                const statusCounts = { 'Completed': 0, 'In Progress': 0, 'Canceled': 0 };
+                const hourlyCounts = Array(24).fill(0);
+                const driverTotals = {};
+                
+                DOMElements.rideLog.innerHTML = '';
+                data.forEach(ride => {
+                    if (ride.status === 'Completed') {
+                        totalIncome += ride.fare;
+                        const driver = ride.driverName || "Unknown";
+                        driverTotals[driver] = (driverTotals[driver] || 0) + ride.fare;
+                    }
+                    if (ride.status === 'In Progress') ridesInProgress++;
+                    statusCounts[ride.status]++;
+                    if(ride.timestamp && typeof ride.timestamp.toDate === 'function') {
+                        const hour = ride.timestamp.toDate().getHours();
+                        hourlyCounts[hour]++;
+                    }
+                    UI.renderRideLogRow(ride);
+                });
+
+                const completedRides = statusCounts['Completed'];
+                const avgFare = completedRides > 0 ? totalIncome / completedRides : 0;
+
+                DOMElements.totalIncome.textContent = `₹${totalIncome.toFixed(2)}`;
+                DOMElements.totalRides.textContent = data.length;
+                DOMElements.avgFare.textContent = `₹${avgFare.toFixed(2)}`;
+                DOMElements.ridesInProgress.textContent = ridesInProgress;
+
+                Charts.updateAll(data, statusCounts, hourlyCounts, driverTotals);
+            },
+            renderRideLogRow: (ride) => {
+                const row = document.createElement('tr');
+                row.className = 'bg-gray-800 border-b border-gray-700 hover:bg-gray-600';
+                const statusColor = {
+                    'Completed': 'bg-green-900 text-green-300',
+                    'In Progress': 'bg-purple-900 text-purple-300',
+                    'Canceled': 'bg-red-900 text-red-300'
+                }[ride.status] || 'bg-gray-700 text-gray-300';
+                
+                const rideTime = (ride.timestamp && typeof ride.timestamp.toDate === 'function') 
+                    ? ride.timestamp.toDate().toLocaleTimeString() : 'N/A';
+
+                row.innerHTML = `
+                    <td class="px-4 py-2 font-mono text-xs">${ride.id.substring(0, 8)}</td>
+                    <td class="px-4 py-2">${ride.driverName || 'N/A'}</td>
+                    <td class="px-4 py-2"><span class="px-2 py-1 text-xs font-medium rounded-full ${statusColor}">${ride.status}</span></td>
+                    <td class="px-4 py-2 font-semibold">₹${ride.fare.toFixed(2)}</td>
+                    <td class="px-4 py-2">${rideTime}</td>
+                `;
+                DOMElements.rideLog.prepend(row);
+            }
+        };
+
+        // --- Chart Service: Manages Chart.js instances ---
+        const Charts = {
+            initialize: () => {
+                const commonOptions = {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: false } },
+                    scales: { 
+                        x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, 
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' }, beginAtZero: true } 
+                    }
+                };
+
+                incomeChart = new Chart(DOMElements.incomeChartCanvas, { type: 'line', data: { labels: [], datasets: [{ label: 'Cumulative Income', data: [], borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', fill: true, tension: 0.4 }] }, options: commonOptions });
+                rideStatusChart = new Chart(DOMElements.rideStatusChartCanvas, { type: 'doughnut', data: { labels: ['Completed', 'In Progress', 'Canceled'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#2563eb', '#9333ea', '#dc2626'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { color: '#d1d5db' } } } } });
+                peakHoursChart = new Chart(DOMElements.peakHoursChartCanvas, { type: 'bar', data: { labels: Array.from({length: 24}, (_, i) => `${i}:00`), datasets: [{ label: 'Number of Rides', data: Array(24).fill(0), backgroundColor: '#3b82f6' }] }, options: commonOptions });
+                driverChart = new Chart(DOMElements.driverChartCanvas, { type: 'bar', data: { labels: [], datasets: [{ label: 'Total Earnings', data: [], backgroundColor: "rgba(54, 162, 235, 0.6)" }] }, options: commonOptions });
+            },
+            updateAll: (data, statusCounts, hourlyCounts, driverTotals) => {
+                let cumulativeIncome = 0;
+                const labels = data.map(r => (r.timestamp && r.timestamp.toDate) ? r.timestamp.toDate().toLocaleTimeString() : '');
+                const incomeData = data.map(r => { if (r.status === 'Completed') cumulativeIncome += r.fare; return cumulativeIncome; });
+                
+                incomeChart.data.labels = labels;
+                incomeChart.data.datasets[0].data = incomeData;
+                incomeChart.update();
+
+                rideStatusChart.data.datasets[0].data = [statusCounts['Completed'], statusCounts['In Progress'], statusCounts['Canceled']];
+                rideStatusChart.update();
+
+                peakHoursChart.data.datasets[0].data = hourlyCounts;
+                peakHoursChart.update();
+
+                driverChart.data.labels = Object.keys(driverTotals);
+                driverChart.data.datasets[0].data = Object.values(driverTotals);
+                driverChart.update();
+            }
+        };
+
+        // --- Firebase Service: Manages Firestore and Auth ---
+        const FirebaseService = {
+            initialize: async () => {
+                try {
+                    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    await FirebaseService.authenticate();
+                } catch (error) {
+                    console.error("Firebase Initialization Error:", error);
+                    UI.showError("Failed to connect to services.");
+                    UI.hideLoading();
+                }
+            },
+            authenticate: () => {
+                return new Promise((resolve) => {
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            DOMElements.userId.textContent = userId;
+                            resolve();
+                        } else {
+                            try {
+                                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                                if (initialAuthToken) { await signInWithCustomToken(auth, initialAuthToken); } 
+                                else { await signInAnonymously(auth); }
+                            } catch (error) {
+                                console.error("Authentication Error:", error);
+                                UI.showError("Authentication failed.");
+                                UI.hideLoading();
+                            }
+                        }
+                    });
+                });
+            },
+            listenToRides: () => {
+                try {
+                    const ridesCollectionPath = `artifacts/${appId}/users/${userId}/rides`;
+                    const q = query(collection(db, ridesCollectionPath), orderBy("timestamp", "desc"), limit(50));
+
+                    onSnapshot(q, (querySnapshot) => {
+                        const newRideData = [];
+                        querySnapshot.forEach((doc) => newRideData.push({ id: doc.id, ...doc.data() }));
+                        rideData = newRideData.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
+                        localStorage.setItem(`rideData_${userId}`, JSON.stringify(rideData));
+                        UI.updateDashboard(rideData);
+                        UI.hideLoading();
+                    }, (error) => {
+                        console.error("Error listening to ride data:", error);
+                        UI.showError("Failed to load real-time data.");
+                        UI.hideLoading();
+                    });
+                } catch (error) {
+                    console.error("Error setting up listener:", error);
+                    UI.showError("Real-time connection failed.");
+                    UI.hideLoading();
+                }
+            },
+            simulateNewRide: async () => {
+                const statuses = ['Completed', 'Completed', 'Completed', 'In Progress', 'Canceled'];
+                const drivers = ['Ravi', 'Priya', 'Amit', 'Sunita'];
+                const status = statuses[Math.floor(Math.random() * statuses.length)];
+                const fare = parseFloat((Math.random() * (800 - 100) + 100).toFixed(2));
+                const driverName = drivers[Math.floor(Math.random() * drivers.length)];
+
+                if (typeof fare !== 'number' || fare < 0 || !statuses.includes(status)) {
+                    UI.showError("Invalid ride data generated. Please try again.");
+                    return;
+                }
+
+                const newRide = { driverName, status, fare, timestamp: new Date() };
+
+                try {
+                    const ridesCollectionPath = `artifacts/${appId}/users/${userId}/rides`;
+                    await addDoc(collection(db, ridesCollectionPath), newRide);
+                } catch (error) {
+                    console.error("Error adding document: ", error);
+                    UI.showError("Failed to simulate new ride.");
+                }
+            },
+            getCachedSummary: async (summaryId) => {
+                try {
+                    const docRef = doc(db, `artifacts/${appId}/ai_summaries/${userId}/${summaryId}`);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? docSnap.data().summary : null;
+                } catch (error) {
+                    console.error("Error getting cached summary:", error);
+                    return null;
+                }
+            },
+            cacheSummary: async (summaryId, summary) => {
+                try {
+                    const docRef = doc(db, `artifacts/${appId}/ai_summaries/${userId}/${summaryId}`);
+                    await setDoc(docRef, { summary, createdAt: new Date() });
+                } catch (error) {
+                    console.error("Error caching summary:", error);
+                }
+            }
+        };
+
+        // --- AI Service: Manages Gemini API calls ---
+        const AIService = {
+            getPromptForType: (type, data) => {
+                const baseIntro = `You are a business analyst for an Uber fleet owner in India. Analyze the provided JSON data of today's rides and generate insights. The data includes status, fare in INR, and the request hour. Today's ride data: ${JSON.stringify(data, null, 2)}`;
+                
+                switch(type) {
+                    case 'trends':
+                        return `${baseIntro}\n\nIdentify the top 2-3 key trends from this data. Focus on patterns in ride status, earnings over time, and cancellation rates. Are there specific hours where cancellations are high? Is income concentrated in a particular part of the day? Present as a bulleted list.`;
+                    case 'advice':
+                        return `${baseIntro}\n\nBased on this data, provide 2-3 concrete, actionable pieces of advice to help the fleet owner optimize their operations for tomorrow. For example, suggest repositioning drivers during certain hours, or investigating high cancellation periods.`;
+                    case 'summary':
+                    default:
+                        return `${baseIntro}\n\nProvide a concise, overall business summary including:
+                        1.  **Overall Performance:** A brief, one-sentence summary.
+                        2.  **Key Metrics:** Total earnings, total rides, canceled rides, and average fare.
+                        3.  **Peak Hours Analysis:** Identify the busiest hours.
+                        Format your response clearly using markdown.`;
+                }
+            },
+            generateSummary: async () => {
+                if (rideData.length === 0) {
+                    DOMElements.aiSummary.textContent = "Not enough data to generate insights.";
+                    return;
+                }
+
+                UI.setSummaryLoading(true);
+                const promptType = DOMElements.promptType.value;
+                const cacheId = `${new Date().toISOString().split('T')[0]}_${promptType}`;
+                
+                const cachedSummary = await FirebaseService.getCachedSummary(cacheId);
+                if (cachedSummary) {
+                    DOMElements.aiSummary.textContent = cachedSummary + "\n\n(This insight was loaded from cache)";
+                    UI.setSummaryLoading(false);
+                    return;
+                }
+
+                DOMElements.aiSummary.textContent = 'Analyzing data and generating insights...';
+
+                const simplifiedRideData = rideData.map(r => ({
+                    status: r.status, fare: r.fare, hour: (r.timestamp && r.timestamp.toDate) ? r.timestamp.toDate().getHours() : null
+                })).filter(r => r.hour !== null);
+
+                const prompt = AIService.getPromptForType(promptType, simplifiedRideData);
+          try {
+              const apiUrl = "https://askgemini-mchp7s5bua-uc.a.run.app"; // Firebase Function endpoint
+              
+              const response = await fetch(apiUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ prompt })
+              });
+
+              if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+
+              const result = await response.json();
+
+              if (result.response) {
+                  const summaryText = result.response;
+                  DOMElements.aiSummary.textContent = summaryText;
+                  await FirebaseService.cacheSummary(cacheId, summaryText);
+              } else {
+                  throw new Error("No content in API response.");
+              }
+          } catch (error) {
+              console.error("Error calling Gemini API:", error);
+              UI.showError("AI insight generation failed.");
+              DOMElements.aiSummary.textContent = "Sorry, I couldn't generate the insights. Please try again.";
+          } finally {
+              UI.setSummaryLoading(false);
+          }
+
+            }
+        };
+
+        // --- Main Application Initialization ---
+        async function main() {
+            try {
+                UI.showLoading();
+                Charts.initialize();
+                
+                await FirebaseService.initialize();
+
+                const cachedData = localStorage.getItem(`rideData_${userId}`);
+                if (cachedData) {
+                    try {
+                        rideData = JSON.parse(cachedData);
+                        UI.updateDashboard(rideData);
+                    } catch(e) {
+                        console.error("Could not parse cached data", e);
+                        localStorage.removeItem(`rideData_${userId}`);
+                    }
+                }
+
+                FirebaseService.listenToRides();
+                
+                DOMElements.simulateRideBtn.addEventListener('click', FirebaseService.simulateNewRide);
+                DOMElements.generateSummaryBtn.addEventListener('click', AIService.generateSummary);
+
+                // A small delay to ensure the loading screen doesn't just flash off
+                setTimeout(UI.hideLoading, 500);
+            } catch (error) {
+                console.error("Error during application initialization:", error);
+                UI.showError("Application failed to start. Please refresh.");
+                UI.hideLoading();
+            }
+        }
+
+        window.onload = main;
+    </script>
+</body>
+</html>
